@@ -17,6 +17,7 @@
           sqlite
           bun
           nodejs-slim_24
+          ffmpeg
         ];
 
         # 等价于你的：

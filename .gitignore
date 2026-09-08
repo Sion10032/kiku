@@ -1,2 +1,6 @@
 .direnv
+.pi
+.superpowers
+.vscode
 data
+refs
