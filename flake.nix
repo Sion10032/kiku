@@ -6,22 +6,27 @@
   };
 
   outputs = { self, nixpkgs, ... }: let
-    # system should match the system you are running on
-    system = "x86_64-linux";
+    # nixpkgs 26.11 起已移除 x86_64-darwin，故不再列出
+    systems = [
+      "x86_64-linux"
+      "aarch64-linux"
+      "aarch64-darwin"
+    ];
+
+    forAllSystems = f:
+      nixpkgs.lib.genAttrs systems (
+        system: f (import nixpkgs { inherit system; })
+      );
   in {
-    devShells."${system}".default = let
-      pkgs = import nixpkgs { inherit system; };
-    in
-      pkgs.mkShellNoCC {
+    devShells = forAllSystems (pkgs: {
+      default = pkgs.mkShellNoCC {
         packages = with pkgs; [
           sqlite
           bun
           nodejs-slim_24
           ffmpeg
         ];
-
-        # 等价于你的：
-        # LD_LIBRARY_PATH = "${pkgs.stdenv.cc.cc.lib}/lib";
       };
+    });
   };
 }
