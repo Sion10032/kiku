@@ -1,0 +1,6 @@
+[submodule "kiku-backend"]
+	path = kiku-backend
+	url = ../kiku-backend.git
+[submodule "kiku-frontend"]
+	path = kiku-frontend
+	url = ../kiku-frontend.git
