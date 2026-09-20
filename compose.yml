@@ -1,0 +1,18 @@
+services:
+  kiku:
+    image: ghcr.io/sion10032/kiku:latest
+    build: .
+    restart: always
+    ports:
+      - "8888:8888"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8888
+      # 数据目录属主：设成宿主机运行用户的 uid/gid（也可写进同级 .env）
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+    volumes:
+      # config.json + sqlite（容器内以 uid 1000 运行，宿主机目录需对 1000 可写）
+      - ./data:/app/data
+      # 媒体库：宿主机目录用 MEDIA_DIR 指定，容器内固定只读挂到 /media
+      - ${MEDIA_DIR:-./data/library}:/media:ro

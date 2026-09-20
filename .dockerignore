@@ -1,0 +1,32 @@
+# 构建上下文是父仓库，镜像里只需要两个子模块的源码
+# （子模块必须先 `git submodule update --init`，否则这里是空目录）
+
+# 版本控制与开发环境
+.git
+.gitmodules
+.direnv
+.envrc
+.pi
+.superpowers
+.vscode
+
+# 文档与草稿（`*.md` / `*.png` / `*.svg` 只匹配父仓库根目录，
+# 子模块内的 public/ 图标不受影响）
+docs
+plans
+refs
+*.md
+*.png
+*.svg
+
+# 数据与构建产物：媒体库可能几十 GB，绝不能进上下文
+data
+**/data
+old-data
+**/old-data
+**/node_modules
+**/dist
+**/out
+**/coverage
+**/*.log
+**/*.tsbuildinfo
