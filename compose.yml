@@ -1,7 +1,14 @@
 services:
   kiku:
     image: ghcr.io/sion10032/kiku:latest
-    build: .
+    build:
+      context: .
+      # 两端版本显示都靠构建期注入（不做 git 解析）；不传则显示 dev-unknown
+      args:
+        APP_VERSION_FRONTEND: ${APP_VERSION_FRONTEND:-}
+        APP_VERSION_BACKEND: ${APP_VERSION_BACKEND:-}
+        GIT_COMMIT_FRONTEND: ${GIT_COMMIT_FRONTEND:-}
+        GIT_COMMIT_BACKEND: ${GIT_COMMIT_BACKEND:-}
     restart: always
     ports:
       - "8888:8888"

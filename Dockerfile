@@ -11,9 +11,15 @@ COPY kiku-backend/package.json kiku-backend/bun.lock ./
 RUN bun install --frozen-lockfile
 COPY kiku-backend/tsconfig.json kiku-backend/build.ts ./
 COPY kiku-backend/src ./src
+# 版本显示用的短 hash：不跑 git 解析，只认这里传入的值（build.ts 的 define 注入）
+# 不传则服务端显示 dev-unknown
+ARG APP_VERSION_BACKEND=
+ENV APP_VERSION_BACKEND=$APP_VERSION_BACKEND
+ARG GIT_COMMIT_BACKEND=
+ENV GIT_COMMIT_BACKEND=$GIT_COMMIT_BACKEND
 RUN bun run build
 
-# 前端产物：API 走同源 /api，无构建期环境变量
+# 前端产物：API 走同源 /api；构建期变量只有版本显示的 APP_VERSION_FRONTEND / GIT_COMMIT_FRONTEND
 FROM oven/bun:alpine AS frontend-build
 WORKDIR /app
 COPY kiku-frontend/package.json kiku-frontend/bun.lock ./
@@ -21,6 +27,12 @@ RUN bun install --frozen-lockfile
 COPY kiku-frontend/tsconfig.json kiku-frontend/vite.config.ts kiku-frontend/index.html ./
 COPY kiku-frontend/public ./public
 COPY kiku-frontend/src ./src
+# 版本显示用的版本号与短 hash：都不跑 git 解析，只认这里传入的值
+# 不传则前端显示 dev-unknown（见 vite.config.ts 的 APP_VERSION / APP_COMMIT）
+ARG APP_VERSION_FRONTEND=
+ENV APP_VERSION_FRONTEND=$APP_VERSION_FRONTEND
+ARG GIT_COMMIT_FRONTEND=
+ENV GIT_COMMIT_FRONTEND=$GIT_COMMIT_FRONTEND
 RUN bun run build
 
 FROM oven/bun:alpine
