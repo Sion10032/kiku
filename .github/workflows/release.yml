@@ -1,4 +1,4 @@
-# 发布流水线：父仓库打 v* tag 触发，构建镜像推 GHCR 并创建 GitHub Release。
+# 发布流水线：父仓库打 v* tag 触发，构建双平台镜像推 GHCR 并创建 GitHub Release。
 #
 # 发布流程（人做的部分）：
 #   1. 两个子仓库各自打 tag 并 push（版本号互不相干）
@@ -6,6 +6,10 @@
 #   3. 父仓库打 v* tag push → 本 workflow 全自动
 # 门禁：子模块引用的 commit 缺 tag 时 CI 失败；在子仓库补 tag（不改变 commit）后
 # 直接 re-run workflow 即可，父仓库 tag 不用删。
+#
+# 双平台构建：不用 QEMU（Bun 在 QEMU 模拟下不稳定），linux/amd64 与 linux/arm64
+# 各跑在 GitHub 原生 runner 上（public 仓库免费的 ubuntu-24.04-arm）并行构建，
+# 单架构镜像按 digest 推送，最后由 merge job 合并成多平台 manifest 再打 tag。
 name: Release
 
 on:
@@ -17,8 +21,15 @@ permissions:
   packages: write # 推送 GHCR 镜像
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       # fetch-depth: 0 拉全量父仓库历史：生成 notes 时要 ls-tree 上一个父 tag
       # 里子模块指向的 commit。父仓库 tags 随全量 fetch 一起到位。
@@ -29,7 +40,7 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-      # checkout 对 submodule 是浅克隆且不带 tags；门禁检查与 release notes
+      # checkout 对 submodule 是浅克隆且不带 tags；门禁检查与版本注入
       # 都依赖子仓库 tag，手动补拉（tag 可达的旧 commit 对象会一并取回）。
       - name: Fetch submodule tags
         run: |
@@ -37,7 +48,7 @@ jobs:
           git -C kiku-backend fetch origin --tags --force
 
       # 门禁：子模块当前引用的 commit 必须在各自仓库有 tag（保证可追溯）。
-      # 版本号不要求一致，只要求「打过 tag」。
+      # 版本号不要求一致，只要求「打过 tag」。两个矩阵 job 重复执行，幂等。
       - name: Check submodule tags
         run: |
           fail=0
@@ -62,6 +73,90 @@ jobs:
             echo "backend_commit=$(git -C kiku-backend rev-parse --short HEAD)"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Dockerfile 在父仓库根，build context 是父仓库（COPY 两个子模块目录），
+      # 四个版本 ARG 已在 Dockerfile/compose.yml 定义，这里只填值。
+      # push-by-digest：单架构镜像先按 digest 推上去、不打任何 tag，
+      # 由 merge job 合并成多平台 manifest 后统一打 <tag> / latest。
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=ghcr.io/sion10032/kiku,push-by-digest=true,name-canonical=true,push=true
+          build-args: |
+            APP_VERSION_FRONTEND=${{ steps.args.outputs.frontend_version }}
+            APP_VERSION_BACKEND=${{ steps.args.outputs.backend_version }}
+            GIT_COMMIT_FRONTEND=${{ steps.args.outputs.frontend_commit }}
+            GIT_COMMIT_BACKEND=${{ steps.args.outputs.backend_commit }}
+
+      # digest 存为 artifact，文件名取 sha256: 之后的 hex（merge job 按文件名拼源引用）
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.runner }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # 把两个单架构镜像合成一个多平台 manifest，一次性打 <tag> + latest：
+  # tag 出现即代表双平台齐全，不存在「latest 暂时只有单平台」的中间态。
+  merge:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push multi-arch manifest
+        run: |
+          # 下行 $(printf ...) 的分词是刻意的：digest 文件名逐个展开成源镜像引用
+          # shellcheck disable=SC2046
+          docker buildx imagetools create \
+            -t "ghcr.io/sion10032/kiku:${GITHUB_REF_NAME}" \
+            -t "ghcr.io/sion10032/kiku:latest" \
+            $(printf 'ghcr.io/sion10032/kiku@sha256:%s ' /tmp/digests/*)
+          docker buildx imagetools inspect "ghcr.io/sion10032/kiku:${GITHUB_REF_NAME}"
+
+  release:
+    runs-on: ubuntu-latest
+    needs: merge
+    steps:
+      # notes 生成需要父仓库历史（找上一个 tag）与子模块 tag，重新 checkout
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Fetch submodule tags
+        run: |
+          git -C kiku-frontend fetch origin --tags --force
+          git -C kiku-backend fetch origin --tags --force
+
       # Release notes 不汇总父仓库 commit（都是 update submodules，无信息量），
       # 改为列出两个子模块 tag 的变化；变更明细不复制 commit，直接给子仓库
       # 的 GitHub compare 链接（public，点开即完整列表）。
@@ -85,32 +180,9 @@ jobs:
             line Frontend kiku-frontend kiku-frontend
             line Backend kiku-backend kiku-backend
             echo
-            echo "Image: \`ghcr.io/sion10032/kiku:${GITHUB_REF_NAME}\` (also pushed as \`latest\`)"
+            echo "Image: \`ghcr.io/sion10032/kiku:${GITHUB_REF_NAME}\` (also pushed as \`latest\`, linux/amd64 + linux/arm64)"
           } > body.md
           cat body.md
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Dockerfile 在父仓库根，build context 是父仓库（COPY 两个子模块目录），
-      # 四个版本 ARG 已在 Dockerfile/compose.yml 定义，这里只填值。
-      - name: Build and push image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: |
-            ghcr.io/sion10032/kiku:${{ github.ref_name }}
-            ghcr.io/sion10032/kiku:latest
-          build-args: |
-            APP_VERSION_FRONTEND=${{ steps.args.outputs.frontend_version }}
-            APP_VERSION_BACKEND=${{ steps.args.outputs.backend_version }}
-            GIT_COMMIT_FRONTEND=${{ steps.args.outputs.frontend_commit }}
-            GIT_COMMIT_BACKEND=${{ steps.args.outputs.backend_commit }}
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

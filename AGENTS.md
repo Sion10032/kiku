@@ -62,12 +62,14 @@ GIT_COMMIT_BACKEND=$(git -C kiku-backend rev-parse --short HEAD) \
 docker compose up -d --build
 ```
 
-- CI 发布（`.github/workflows/release.yml`）：父仓库 push `v*` tag 触发。父 tag 只决定镜像
-  版本（`ghcr.io/sion10032/kiku:<tag>` + `latest`）与触发发布；前端 / 后端版本由 CI 自动取
-  各自子模块当前引用 commit 上的 tag（版本互不相干），发布时无需人工填任何版本号。门禁
-  要求这些 commit 在子仓库有 tag（缺则失败，在子仓库补 tag 后 re-run 即可，父 tag 不用删）。
-  Release notes 列出两个子模块 tag 从上一次发布到本次的变化（附子仓库 compare 链接），
-  不汇总父仓库 commit（都是 submodule 更新，无信息量）。
+- CI 发布（`.github/workflows/release.yml`）：父仓库 push `v*` tag 触发。镜像双平台
+  `linux/amd64` + `linux/arm64`：不用 QEMU（Bun 在 QEMU 模拟下不稳定），两个平台各跑在
+  GitHub 原生 runner（public 仓库免费提供 `ubuntu-24.04-arm`）并行构建，按 digest 推送后
+  合并为多平台 manifest 再打 `<tag>` / `latest`。父 tag 只决定镜像版本与触发发布；前端 /
+  后端版本由 CI 自动取各自子模块当前引用 commit 上的 tag（版本互不相干），发布时无需
+  人工填任何版本号。门禁要求这些 commit 在子仓库有 tag（缺则失败，在子仓库补 tag 后
+  re-run 即可，父 tag 不用删）。Release notes 列出两个子模块 tag 从上一次发布到本次的
+  变化（附子仓库 compare 链接），不汇总父仓库 commit（都是 submodule 更新，无信息量）。
 
 ## 参考
 
