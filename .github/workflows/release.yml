@@ -114,9 +114,15 @@ jobs:
 
   # 把两个单架构镜像合成一个多平台 manifest，一次性打 <tag> + latest：
   # tag 出现即代表双平台齐全，不存在「latest 暂时只有单平台」的中间态。
+  # 结果同时推 GHCR 与 Docker Hub：单架构镜像只推在 GHCR（build job 唯一推送目标），
+  # imagetools create 支持跨 registry 复制（拉源 manifest → 推到目标）。
+  # 两个 registry 各一条命令互不牵连，一边失败另一边照常；re-run 时源 digest 不变，幂等。
   merge:
     runs-on: ubuntu-latest
     needs: build
+    env:
+      # secrets 只能在 job 级 env 引用（workflow 顶层 env 不支持 secrets 上下文）
+      DH_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/kiku
     steps:
       - name: Download digests
         uses: actions/download-artifact@v4
@@ -132,15 +138,29 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create and push multi-arch manifest
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create and push multi-arch manifests
         run: |
-          # 下行 $(printf ...) 的分词是刻意的：digest 文件名逐个展开成源镜像引用
+          # $(printf ...) 的分词是刻意的：digest 文件名逐个展开成源镜像引用
+          # （指令放脚本顶部，对整个脚本生效）
           # shellcheck disable=SC2046
           docker buildx imagetools create \
             -t "ghcr.io/sion10032/kiku:${GITHUB_REF_NAME}" \
             -t "ghcr.io/sion10032/kiku:latest" \
             $(printf 'ghcr.io/sion10032/kiku@sha256:%s ' /tmp/digests/*)
+          # 同样刻意的分词
+          # shellcheck disable=SC2046
+          docker buildx imagetools create \
+            -t "docker.io/${DH_IMAGE}:${GITHUB_REF_NAME}" \
+            -t "docker.io/${DH_IMAGE}:latest" \
+            $(printf 'ghcr.io/sion10032/kiku@sha256:%s ' /tmp/digests/*)
           docker buildx imagetools inspect "ghcr.io/sion10032/kiku:${GITHUB_REF_NAME}"
+          docker buildx imagetools inspect "docker.io/${DH_IMAGE}:${GITHUB_REF_NAME}"
 
   release:
     runs-on: ubuntu-latest
