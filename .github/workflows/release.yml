@@ -73,6 +73,11 @@ jobs:
             echo "backend_commit=$(git -C kiku-backend rev-parse --short HEAD)"
           } >> "$GITHUB_OUTPUT"
 
+      # 创建 docker-container driver 的 builder：runner 默认的 docker driver
+      # 不支持 push-by-digest 输出（下方单架构镜像按 digest 推送依赖它）。
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
