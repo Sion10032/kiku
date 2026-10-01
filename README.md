@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  User Manual: <a href="docs/manual/en/README.md">English</a> · <a href="docs/manual/zh-CN/README.md">简体中文</a>
+</p>
+
+<p align="center">
   A self-hosted media server for DLsite voice works: streaming playback + library management.
   A rewrite of <a href="https://github.com/kikoeru-project/kikoeru-express">kikoeru</a>
   (kikoeru-express + kikoeru-quasar).
@@ -26,12 +30,16 @@
 - [x] Multi-root library scanning with live scan logs and progress
 - [x] Incremental update and full rescan modes
 - [x] DLsite metadata scraping: title, cover, circle, voice actors, tags, series, rating, release date, age rating
+- [x] Archive-based works: `.tar` and stored (uncompressed) `.zip` streamed in place with random access, no extraction
+- [x] Manual works: local works with custom ID prefixes (e.g. `UW123456`), covers auto-imported from the work folder
 - [x] Metadata override editing, metadata refresh, track sync
-- [x] Soft delete for works
+- [x] Bulk title sanitization with regex rules
+- [x] Soft delete for works (single & batch)
 
 **Playback**
 
 - [x] Online streaming playback
+- [x] Resume playback: listening position remembered per work & track, click to continue
 - [x] WavPack (.wv) playback
 - [x] Play queue with play modes: order / repeat all / repeat one / shuffle
 - [x] Rewind / forward (configurable duration)
@@ -55,6 +63,7 @@
 - [x] Material 3 Expressive UI
 - [x] Themes: light / dark / follow system, dynamic color
 - [x] UI scale and content width adjustments
+- [x] In-app file preview: text (encoding detection, font size / wrap) and images (zoom / rotate / gallery)
 - [x] UI language: Simplified Chinese / English
 - [x] R18 cover blur policy (always / hover / never)
 - [x] Private mode (login required)
@@ -84,6 +93,7 @@ Based on kikoeru v0.6.2 (kikoeru-express + kikoeru-quasar).
 | UI language                    | Chinese                           | Chinese + English                |
 | Loudness analysis / volume leveling | ✗                            | ✓                                |
 | WavPack (.wv) playback         | ✗                                 | ✓                                |
+| Archive works (.tar / stored .zip) | ✗                             | ✓                                |
 | Listen history                 | ✗                                 | ✓                                |
 | Settings backup / restore      | ✗                                 | ✓                                |
 | PDF support                    | ✓                                 | ✗                                |
