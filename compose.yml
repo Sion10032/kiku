@@ -22,4 +22,4 @@ services:
       # config.json + sqlite（容器内以 uid 1000 运行，宿主机目录需对 1000 可写）
       - ./data:/app/data
       # 媒体库：宿主机目录用 MEDIA_DIR 指定，容器内固定只读挂到 /media
-      - ${MEDIA_DIR:-./data/library}:/media:ro
+      - ${MEDIA_DIR:-./media}:/media:ro
