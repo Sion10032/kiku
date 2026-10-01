@@ -150,20 +150,23 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Create and push multi-arch manifests
+        # 必须在 digest 目录里执行：源引用按文件名拼 @sha256:<hex>；若用完整路径展开，
+        # /tmp/digests/ 前缀会被拼进 digest，报 invalid reference format。
+        working-directory: /tmp/digests
         run: |
-          # $(printf ...) 的分词是刻意的：digest 文件名逐个展开成源镜像引用
+          # $(printf ...) 的分词是刻意的：digest 文件名（当前目录）逐个展开成源镜像引用
           # （指令放脚本顶部，对整个脚本生效）
           # shellcheck disable=SC2046
           docker buildx imagetools create \
             -t "ghcr.io/sion10032/kiku:${GITHUB_REF_NAME}" \
             -t "ghcr.io/sion10032/kiku:latest" \
-            $(printf 'ghcr.io/sion10032/kiku@sha256:%s ' /tmp/digests/*)
+            $(printf 'ghcr.io/sion10032/kiku@sha256:%s ' *)
           # 同样刻意的分词
           # shellcheck disable=SC2046
           docker buildx imagetools create \
             -t "docker.io/${DH_IMAGE}:${GITHUB_REF_NAME}" \
             -t "docker.io/${DH_IMAGE}:latest" \
-            $(printf 'ghcr.io/sion10032/kiku@sha256:%s ' /tmp/digests/*)
+            $(printf 'ghcr.io/sion10032/kiku@sha256:%s ' *)
           docker buildx imagetools inspect "ghcr.io/sion10032/kiku:${GITHUB_REF_NAME}"
           docker buildx imagetools inspect "docker.io/${DH_IMAGE}:${GITHUB_REF_NAME}"
 
