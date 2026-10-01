@@ -1,0 +1,118 @@
+# 发布流水线：父仓库打 v* tag 触发，构建镜像推 GHCR 并创建 GitHub Release。
+#
+# 发布流程（人做的部分）：
+#   1. 两个子仓库各自打 tag 并 push（版本号互不相干）
+#   2. 父仓库确认 submodule 指针指向已打 tag 的 commit，push
+#   3. 父仓库打 v* tag push → 本 workflow 全自动
+# 门禁：子模块引用的 commit 缺 tag 时 CI 失败；在子仓库补 tag（不改变 commit）后
+# 直接 re-run workflow 即可，父仓库 tag 不用删。
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # 创建 GitHub Release
+  packages: write # 推送 GHCR 镜像
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      # fetch-depth: 0 拉全量父仓库历史：生成 notes 时要 ls-tree 上一个父 tag
+      # 里子模块指向的 commit。父仓库 tags 随全量 fetch 一起到位。
+      # .gitmodules 是相对路径，checkout 自动按父仓库的 https URL 解析子模块，
+      # public 仓库匿名可拉，无需额外凭据。
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      # checkout 对 submodule 是浅克隆且不带 tags；门禁检查与 release notes
+      # 都依赖子仓库 tag，手动补拉（tag 可达的旧 commit 对象会一并取回）。
+      - name: Fetch submodule tags
+        run: |
+          git -C kiku-frontend fetch origin --tags --force
+          git -C kiku-backend fetch origin --tags --force
+
+      # 门禁：子模块当前引用的 commit 必须在各自仓库有 tag（保证可追溯）。
+      # 版本号不要求一致，只要求「打过 tag」。
+      - name: Check submodule tags
+        run: |
+          fail=0
+          for sub in kiku-frontend kiku-backend; do
+            if [ -z "$(git -C "$sub" tag --points-at HEAD)" ]; then
+              echo "::error::$sub points to commit $(git -C "$sub" rev-parse --short HEAD) which has no tag. Tag it in the submodule repo, push, then re-run this workflow"
+              fail=1
+            fi
+          done
+          exit "$fail"
+
+      # 前后端版本号自动取各自子模块当前引用 commit 上的 tag（上方门禁保证非空；
+      # 一个 commit 多个 tag 时取第一个），互不相干；commit 取各自 HEAD 短 hash。
+      # 镜像版本只由父仓库 tag 决定，发布时无需人工填任何版本号。
+      - name: Collect build args
+        id: args
+        run: |
+          {
+            echo "frontend_version=$(git -C kiku-frontend tag --points-at HEAD | head -1)"
+            echo "backend_version=$(git -C kiku-backend tag --points-at HEAD | head -1)"
+            echo "frontend_commit=$(git -C kiku-frontend rev-parse --short HEAD)"
+            echo "backend_commit=$(git -C kiku-backend rev-parse --short HEAD)"
+          } >> "$GITHUB_OUTPUT"
+
+      # Release notes 不汇总父仓库 commit（都是 update submodules，无信息量），
+      # 改为列出两个子模块 tag 的变化；变更明细不复制 commit，直接给子仓库
+      # 的 GitHub compare 链接（public，点开即完整列表）。
+      # 旧 commit 恰好无 tag（历史遗留）时降级显示短 hash，compare 照样能点。
+      - name: Build release notes
+        run: |
+          # 上一个 v* tag：当前触发的 tag 也在本地，按版本倒序取第二个（首个发布为空）
+          prev=$(git tag --sort=-v:refname | grep -E '^v' | sed -n '2p')
+          line() { # $1=label $2=submodule dir $3=GitHub repo name
+            cur=$(git -C "$2" tag --points-at HEAD | head -1)
+            if [ -z "$prev" ]; then
+              echo "- $1 — -> $cur"
+            else
+              old_sha=$(git ls-tree "$prev" "$2" | awk '{print $3}')
+              old=$(git -C "$2" tag --points-at "$old_sha" | head -1)
+              if [ -z "$old" ]; then old="${old_sha:0:7}"; fi
+              echo "- $1 $old -> $cur ([changes](https://github.com/Sion10032/$3/compare/$old...$cur))"
+            fi
+          }
+          {
+            line Frontend kiku-frontend kiku-frontend
+            line Backend kiku-backend kiku-backend
+            echo
+            echo "Image: \`ghcr.io/sion10032/kiku:${GITHUB_REF_NAME}\` (also pushed as \`latest\`)"
+          } > body.md
+          cat body.md
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Dockerfile 在父仓库根，build context 是父仓库（COPY 两个子模块目录），
+      # 四个版本 ARG 已在 Dockerfile/compose.yml 定义，这里只填值。
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/sion10032/kiku:${{ github.ref_name }}
+            ghcr.io/sion10032/kiku:latest
+          build-args: |
+            APP_VERSION_FRONTEND=${{ steps.args.outputs.frontend_version }}
+            APP_VERSION_BACKEND=${{ steps.args.outputs.backend_version }}
+            GIT_COMMIT_FRONTEND=${{ steps.args.outputs.frontend_commit }}
+            GIT_COMMIT_BACKEND=${{ steps.args.outputs.backend_commit }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: body.md
