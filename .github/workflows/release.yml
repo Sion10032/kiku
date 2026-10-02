@@ -204,19 +204,21 @@ jobs:
       # 改为列出两个子模块 tag 的变化；变更明细不复制 commit，直接给子仓库
       # 的 GitHub compare 链接（public，点开即完整列表）。
       # 旧 commit 恰好无 tag（历史遗留）时降级显示短 hash，compare 照样能点。
+      # 子模块 tag 无变化（本次未更新的端）则不列行，notes 只讲有变化的端。
       - name: Build release notes
         run: |
           # 上一个 v* tag：当前触发的 tag 也在本地，按版本倒序取第二个（首个发布为空）
           prev=$(git tag --sort=-v:refname | grep -E '^v' | sed -n '2p')
           line() { # $1=label $2=submodule dir $3=GitHub repo name
             cur=$(git -C "$2" tag --points-at HEAD | head -1)
-            if [ -z "$prev" ]; then
-              echo "- $1 — -> $cur"
-            else
+            if [ -n "$prev" ]; then
               old_sha=$(git ls-tree "$prev" "$2" | awk '{print $3}')
               old=$(git -C "$2" tag --points-at "$old_sha" | head -1)
               if [ -z "$old" ]; then old="${old_sha:0:7}"; fi
+              [ "$old" = "$cur" ] && return
               echo "- $1 $old -> $cur ([changes](https://github.com/Sion10032/$3/compare/$old...$cur))"
+            else
+              echo "- $1 — -> $cur"
             fi
           }
           {
