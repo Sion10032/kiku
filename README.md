@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" width="128" alt="kiku logo" />
+  <img src="https://raw.githubusercontent.com/Sion10032/kiku/main/assets/logo.svg" width="128" alt="kiku logo" />
 </p>
 
 <h1 align="center">kiku</h1>

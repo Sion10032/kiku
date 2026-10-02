@@ -1,0 +1,34 @@
+# README 同步到 Docker Hub 镜像页：README.md 或本 workflow 变化即推送，
+# 与发版解耦（改 README 不用等 tag）；workflow_dispatch 供手动重推。
+#
+# 注意：Docker Hub 的 description 更新 API 要求 Admin 级 access token
+# （Read, Write & Delete scope）——普通读写 token 能推镜像，改描述会 403
+# （见 peter-evans/dockerhub-description#10）。另外 Docker Hub 不渲染
+# 相对路径图片，README 中的图片需用 raw.githubusercontent.com 绝对 URL。
+# GHCR 无需此步：GitHub Packages 页面自动显示源仓库 README。
+name: Docker Hub README
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - README.md
+      - .github/workflows/dockerhub-readme.yml
+  workflow_dispatch:
+
+permissions: {} # 只同步外部描述，不需要任何 GITHUB_TOKEN 权限
+
+jobs:
+  update-description:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Update Docker Hub description
+        uses: peter-evans/dockerhub-description@v5
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ secrets.DOCKERHUB_USERNAME }}/kiku
+          readme-filepath: ./README.md
+          short-description: Self-hosted media server for DLsite voice works
