@@ -23,6 +23,7 @@ RUN bun run build
 FROM oven/bun:alpine AS frontend-build
 WORKDIR /app
 COPY kiku-frontend/package.json kiku-frontend/bun.lock ./
+COPY kiku-frontend/patches ./patches
 RUN bun install --frozen-lockfile
 COPY kiku-frontend/tsconfig.json kiku-frontend/vite.config.ts kiku-frontend/index.html ./
 COPY kiku-frontend/public ./public
