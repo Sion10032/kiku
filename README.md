@@ -41,6 +41,7 @@
 - [x] Online streaming playback
 - [x] Resume playback: listening position remembered per work & track, click to continue
 - [x] WavPack (.wv) playback
+- [x] Video file playback (`.mp4` / `.webm` / `.mkv`): picture in the player, audio-only mode, or excluded from the queue
 - [x] Play queue with play modes: order / repeat all / repeat one / shuffle
 - [x] Rewind / forward (configurable duration)
 - [x] Lyrics display and floating lyrics
@@ -93,6 +94,7 @@ Based on kikoeru v0.6.2 (kikoeru-express + kikoeru-quasar).
 | UI language                    | Chinese                           | Chinese + English                |
 | Loudness analysis / volume leveling | ✗                            | ✓                                |
 | WavPack (.wv) playback         | ✗                                 | ✓                                |
+| Video file playback (mp4 / webm / mkv) | ✗                         | ✓                                |
 | Archive works (.tar / stored .zip) | ✗                             | ✓                                |
 | Listen history                 | ✗                                 | ✓                                |
 | Settings backup / restore      | ✗                                 | ✓                                |
