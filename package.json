@@ -1,0 +1,9 @@
+{
+  "name": "kiku",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --parallel dev:*",
+    "dev:backend": "bun run --cwd kiku-backend dev",
+    "dev:frontend": "bun run --cwd kiku-frontend dev -- --host 0.0.0.0 --port 5172"
+  }
+}
