@@ -4,7 +4,8 @@
 # 注意：Docker Hub 的 description 更新 API 要求 Admin 级 access token
 # （Read, Write & Delete scope）——普通读写 token 能推镜像，改描述会 403
 # （见 peter-evans/dockerhub-description#10）。另外 Docker Hub 不渲染
-# 相对路径图片，README 中的图片需用 raw.githubusercontent.com 绝对 URL。
+# 相对路径图片，同步前把 README 中的相对路径替换为 raw.githubusercontent.com
+# 绝对 URL（见下方替换步骤）；仓库内 README 本身保持相对路径不变。
 # GHCR 无需此步：GitHub Packages 页面自动显示源仓库 README。
 name: Docker Hub README
 
@@ -23,6 +24,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+
+      # Docker Hub 不渲染相对路径图片：把 README 中的相对路径替换为 raw 绝对 URL
+      # （仅作用于本次同步的内容，不改仓库文件）。同时剥掉 <a> 包裹，
+      # Docker Hub 对 <a><img/></a> 渲染不稳定，保留 img 即可。
+      - name: Rewrite image URLs for Docker Hub
+        run: |
+          python3 - <<'PY'
+          import re
+          url = "https://raw.githubusercontent.com/${{ github.repository }}/main"
+          html = open('README.md', encoding='utf-8').read()
+
+          def abs_src(m):
+              return f'src="{url}/{m.group(1)}"' if not m.group(1).startswith(('http://', 'https://')) else m.group(0)
+
+          # <a href="..."><img src="相对路径" ... /></a> → <img src="绝对URL" ... />
+          html = re.sub(r'<a href="[^"]*">(<img [^>]*/>)</a>',
+                        lambda m: re.sub(r'src="([^"]+)"', abs_src, m.group(1)),
+                        html)
+          # 剩余独立 <img> 标签的相对路径 → 绝对 URL
+          html = re.sub(r'src="([^"]+)"', abs_src, html)
+          # markdown 图片的相对路径 → 绝对 URL
+          html = re.sub(r'(\!\[[^\]]*\]\()([^)]+)(\))',
+                        lambda m: f'{m.group(1)}{url}/{m.group(2)}{m.group(3)}'
+                        if not m.group(2).startswith(('http://', 'https://')) else m.group(0),
+                        html)
+          open('README.md', 'w', encoding='utf-8').write(html)
+          PY
 
       - name: Update Docker Hub description
         uses: peter-evans/dockerhub-description@v5

@@ -18,6 +18,14 @@
   （kikoeru-express + kikoeru-quasar）的重写版。
 </p>
 
+## 预览
+
+| 作品库 | 播放器 |
+| --- | --- |
+| ![作品库](assets/browsing-library.png) | ![播放器](assets/playback-player-bar.png) |
+| **作品详情** | **悬浮歌词** |
+| ![作品详情](assets/browsing-work-detail.png) | ![悬浮歌词](assets/playback-lyrics.png) |
+
 | 子项目                          | 说明                                                 |
 | ------------------------------- | ---------------------------------------------------- |
 | [kiku-backend](kiku-backend/)   | Bun + Fastify + Drizzle ORM（bun:sqlite）+ Zod       |

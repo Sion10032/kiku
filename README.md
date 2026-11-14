@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Sion10032/kiku/main/assets/logo.svg" width="128" alt="kiku logo" />
+  <img src="assets/logo.svg" width="128" alt="kiku logo" />
 </p>
 
 <h1 align="center">kiku</h1>
@@ -17,6 +17,14 @@
   A rewrite of <a href="https://github.com/kikoeru-project/kikoeru-express">kikoeru</a>
   (kikoeru-express + kikoeru-quasar).
 </p>
+
+## Screenshots
+
+| Library | Player |
+| --- | --- |
+| ![Library](assets/browsing-library.png) | ![Player](assets/playback-player-bar.png) |
+| **Work detail** | **Floating lyrics** |
+| ![Work detail](assets/browsing-work-detail.png) | ![Floating lyrics](assets/playback-lyrics.png) |
 
 | Subproject                     | Description                                           |
 | ------------------------------ | ----------------------------------------------------- |
